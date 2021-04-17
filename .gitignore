@@ -1,0 +1,7 @@
+wandb*
+checkpoints*
+.vscode*
+.ipynb_checkpoints*
+.__pycache__*
+SPY_ta.csv
+*.pyc
