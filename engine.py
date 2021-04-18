@@ -84,7 +84,7 @@ class Ctok(pl.LightningModule):
 
     def configure_optimizers(self):
         # self.hparams available because we called self.save_hyperparameters()
-        return torch.optim.Adadelta(self.parameters(), lr=self.hparams.learning_rate)#, rho=.95, eps=1e-7)
+        return torch.optim.Adadelta(self.parameters(), lr=self.hparams.learning_rate, rho=.95, eps=1e-7)
 
     def train_dataloader(self):
         return DataLoader(
