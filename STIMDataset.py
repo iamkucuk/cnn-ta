@@ -1,3 +1,4 @@
+from balanced_sampler import ImbalancedDatasetSampler
 from labellers import original_label_strategy, peak_valley_pivots_candlestick
 from typing import Tuple
 import numpy as np
@@ -77,14 +78,16 @@ class STIMDataset(Dataset):
         self.sampler = None
         if self.training:
             self.dataset_to_load = self.normalized_dataset[f"{self.year_start}-1-1":f"{self.year_finish}-1-1"]
-            self.sampler = ImbalancedDatasetSampler(self, callback_get_label=STIMDatasetLabelCallback)
+            self.sampler = ImbalancedDatasetSampler(self, callback_get_label=STIMDataset.STIMDatasetLabelCallback)
         else:
             self.dataset_to_load = self.normalized_dataset[f"{self.year_val}-1-1":f"{self.year_val+1}-1-1"]
 
-        
-
     def __len__(self):
         return len(self.dataset_to_load)
+
+    @staticmethod
+    def STIMDatasetLabelCallback(dataset, idx):
+        return dataset.__getitem__(idx)[1].cpu().data.item()
 
     def transform_to_val(self):
         self.training = False
@@ -142,69 +145,6 @@ class STIMDataset(Dataset):
         self.tickers.plot(y="adj_close", use_index=True, ax=ax)
         plt.plot(self.tickers.adj_close[self.tickers.labels == 1], color="g", marker="*", linestyle="None")
         plt.plot(self.tickers.adj_close[self.tickers.labels == 2], color="r", marker="*", linestyle="None")
-
 # dataset = STIMDataset()
 # dataset.show_labeled_data()
 
-import torch
-import torch.utils.data
-import torchvision
-
-def STIMDatasetLabelCallback(dataset, idx):
-    return dataset.__getitem__(idx)[1].cpu().data.item()
-
-class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
-    """Samples elements randomly from a given list of indices for imbalanced dataset
-    Arguments:
-        indices (list, optional): a list of indices
-        num_samples (int, optional): number of samples to draw
-        callback_get_label func: a callback-like function which takes two arguments - dataset and index
-    """
-
-    def __init__(self, dataset, indices=None, num_samples=None, callback_get_label=STIMDatasetLabelCallback):
-                
-        # if indices is not provided, 
-        # all elements in the dataset will be considered
-        self.indices = list(range(len(dataset))) \
-            if indices is None else indices
-
-        # define custom callback
-        self.callback_get_label = callback_get_label
-
-        # if num_samples is not provided, 
-        # draw `len(indices)` samples in each iteration
-        self.num_samples = len(self.indices) \
-            if num_samples is None else num_samples
-            
-        # distribution of classes in the dataset 
-        label_to_count = {}
-        for idx in self.indices:
-            label = self._get_label(dataset, idx)
-            if label in label_to_count:
-                label_to_count[label] += 1
-            else:
-                label_to_count[label] = 1
-                
-        # weight for each sample
-        weights = [1.0 / label_to_count[self._get_label(dataset, idx)]
-                   for idx in self.indices]
-        self.weights = torch.DoubleTensor(weights)
-
-    def _get_label(self, dataset, idx):
-        if self.callback_get_label:
-            return self.callback_get_label(dataset, idx)
-        elif isinstance(dataset, torchvision.datasets.MNIST):
-            return dataset.train_labels[idx].item()
-        elif isinstance(dataset, torchvision.datasets.ImageFolder):
-            return dataset.imgs[idx][1]
-        elif isinstance(dataset, torch.utils.data.Subset):
-            return dataset.dataset.imgs[idx][1]
-        else:
-            raise NotImplementedError
-                
-    def __iter__(self):
-        return (self.indices[i] for i in torch.multinomial(
-            self.weights, self.num_samples, replacement=True))
-
-    def __len__(self):
-        return self.num_samples

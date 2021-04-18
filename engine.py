@@ -1,3 +1,4 @@
+from data_analyzer import LabelHistogram
 import pytorch_lightning as pl
 import copy
 from pytorch_lightning.metrics.classification.confusion_matrix import ConfusionMatrix
@@ -21,6 +22,9 @@ class Ctok(pl.LightningModule):
         self.model = model
         self.cf = ConfusionMatrix(3, normalize="true")
         self.increase_every = None
+        self.hist_training = LabelHistogram(["Hold", "Buy", "Sell"])
+        self.hist_validation = LabelHistogram(["Hold", "Buy", "Sell"])
+        self.hist_test = LabelHistogram(["Hold", "Buy", "Sell"])
 
     def forward(self, x):
         return self.model(x)
@@ -29,6 +33,7 @@ class Ctok(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, y)
+        self.hist_training.update(y.cpu().data.numpy())
         self.log('train_loss', loss)
         return loss
 
@@ -40,6 +45,7 @@ class Ctok(pl.LightningModule):
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, y)
         self.log('valid_loss', loss)
+        self.hist_validation.update(y.cpu().data.numpy())
         _, preds = y_hat.max(1)
         self.cf.update(preds, y)
         return loss
@@ -63,6 +69,7 @@ class Ctok(pl.LightningModule):
         y_hat = self(x)
         _, preds = y_hat.max(1)
         self.cf.update(preds, y)
+        self.hist_test.update(y.cpu().data.numpy())
         return preds
 
     def test_epoch_end(self, outputs):
@@ -77,7 +84,7 @@ class Ctok(pl.LightningModule):
 
     def configure_optimizers(self):
         # self.hparams available because we called self.save_hyperparameters()
-        return torch.optim.Adadelta(self.parameters(), lr=self.hparams.learning_rate)
+        return torch.optim.Adadelta(self.parameters(), lr=self.hparams.learning_rate)#, rho=.95, eps=1e-7)
 
     def train_dataloader(self):
         return DataLoader(
