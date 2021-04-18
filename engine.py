@@ -90,7 +90,7 @@ class Ctok(pl.LightningModule):
         return DataLoader(
             dataset=self.dataset_train,
             batch_size=self.hparams.batch_size,
-            sampler=self.dataset_train.sampler,
+            sampler=ImbalancedDatasetSampler(self.dataset_train, callback_get_label=STIMDataset.STIMDatasetLabelCallback),
             num_workers=2
         )
 
