@@ -1,5 +1,6 @@
+import warnings
 from balanced_sampler import ImbalancedDatasetSampler
-from labellers import original_label_strategy, peak_valley_pivots_candlestick
+from labellers import fill_window, original_label_strategy, peak_valley_pivots_candlestick
 from typing import Tuple
 import numpy as np
 from torch.utils.data import Dataset
@@ -34,14 +35,12 @@ class TrainingStage(Enum):
     test = 2
 
 class STIMDataset(Dataset):
-    def __init__(self, csv_file="/content/src/SPY.csv", interval = range(6, 21), test_split_last_n = 7, label_method: LabellingStrategy = LabellingStrategy.original, strategy_kwargs: dict = {}, years_interval: Tuple = None, training: bool = True, test: bool = False) -> None:
+    def __init__(self, csv_file="SPY.csv", interval = range(6, 21), test_split_last_n = 7, filling_window_length = None, label_method: LabellingStrategy = LabellingStrategy.original, strategy_kwargs: dict = {}, years_interval: Tuple = None, training: bool = True, test: bool = False) -> None:
         super().__init__()
         self.tickers = pd.read_csv(csv_file)
         self.tickers["Date"] = pd.to_datetime(self.tickers["Date"], format="%Y-%m-%d")
         self.tickers.set_index("Date", inplace=True)
         self.tickers.ta.adjusted = "adj_close"
-
-        # self.num_years = self.tickers.index[-1].year - self.tickers.index[0].year
         
         self.indicators = ["rsi", "willr", "wma", "ema", "sma", "hma", "tema", 
                         "cci", "cmo", "macd", "ppo", "roc", "cmf", "adx"]#, "psar"]
@@ -49,6 +48,11 @@ class STIMDataset(Dataset):
         if len(self.tickers.columns) < 8:
             # if label_method == LabellingStrategy.original:
             self.tickers["labels"] = label_method(self.tickers["adj_close"], **strategy_kwargs)
+            if isinstance(filling_window_length, int):
+                if label_method == LabellingStrategy.zigzag:
+                    fill_window(self.tickers.labels, filling_window_length)
+                else:
+                    warnings.warn("Label strategy must be zigzag when using fill_till feature. Ignoring fill_till.")
 
             self._generate_tas(self.tickers, interval=interval)
         
@@ -145,6 +149,5 @@ class STIMDataset(Dataset):
         self.tickers.plot(y="adj_close", use_index=True, ax=ax)
         plt.plot(self.tickers.adj_close[self.tickers.labels == 1], color="g", marker="*", linestyle="None")
         plt.plot(self.tickers.adj_close[self.tickers.labels == 2], color="r", marker="*", linestyle="None")
-# dataset = STIMDataset()
+# dataset = STIMDataset(csv_file = "SPY.csv", filling_window_length=5, label_method=LabellingStrategy.zigzag, strategy_kwargs={"up_thresh":.05, "down_thresh":-.05})
 # dataset.show_labeled_data()
-

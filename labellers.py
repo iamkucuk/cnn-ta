@@ -166,4 +166,13 @@ def peak_valley_pivots_candlestick(close, up_thresh=.1, down_thresh=-.1):#, high
     pivots[pivots == 1] = 2
     pivots[pivots == -1] = 1
 
-    return pivots 
+    return pivots
+
+def fill_window(labels, window_length):
+    "0: hold, 1: buy, 2:sell"
+    labels_np = labels.to_numpy()
+    labels_np[labels_np == 2] = -1
+    labels_np = np.convolve(labels_np, np.ones(window_length), "same")
+    labels_np[labels_np == -1] = 2
+    return labels_np
+            
